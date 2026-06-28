@@ -1,0 +1,89 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net
+    match /{document=**} { 
+      allow read, write: if false; 
+    }
+
+    // Helpers
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isAdmin() { return isSignedIn() && request.auth.token.email == 'admin@study.app'; }
+    function isValidId(id) { return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId)
+                    && isValidId(userId)
+                    && incoming().keys().hasAll(['uid', 'email', 'createdAt'])
+                    && incoming().uid == userId
+                    && incoming().email is string
+                    && incoming().createdAt is string;
+      allow update: if isAdmin() || (isOwner(userId) && !('banned' in incoming().diff(existing()).affectedKeys()));
+      allow delete: if isAdmin();
+    }
+
+    match /users/{userId}/decks/{deckId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId)
+                    && isValidId(deckId)
+                    && incoming().keys().hasAll(['id', 'userId', 'name', 'createdAt'])
+                    && incoming().id == deckId
+                    && incoming().userId == userId
+                    && incoming().name is string
+                    && incoming().name.size() > 0 && incoming().name.size() <= 200
+                    && incoming().createdAt is string;
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    match /users/{userId}/decks/{deckId}/cards/{cardId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId)
+                    && isValidId(deckId)
+                    && isValidId(cardId)
+                    && incoming().keys().hasAll(['id', 'deckId', 'userId', 'front', 'back'])
+                    && incoming().id == cardId
+                    && incoming().deckId == deckId
+                    && incoming().userId == userId
+                    && incoming().front is string && incoming().front.size() > 0 && incoming().front.size() <= 5000
+                    && incoming().back is string && incoming().back.size() > 0 && incoming().back.size() <= 10000;
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    match /users/{userId}/sessions/{sessionId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId)
+                    && isValidId(sessionId)
+                    && incoming().keys().hasAll(['id', 'userId', 'deckId', 'cardsStudied', 'correctAnswers', 'incorrectAnswers', 'durationSeconds', 'timestamp'])
+                    && incoming().id == sessionId
+                    && incoming().userId == userId
+                    && incoming().cardsStudied is number
+                    && incoming().correctAnswers is number
+                    && incoming().incorrectAnswers is number
+                    && incoming().durationSeconds is number
+                    && incoming().timestamp is string;
+      allow update: if false; // Sessions are immutable
+      allow delete: if isOwner(userId);
+    }
+
+    match /users/{userId}/notes/{noteId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId)
+                    && isValidId(noteId)
+                    && incoming().keys().hasAll(['id', 'userId', 'title', 'content', 'createdAt'])
+                    && incoming().id == noteId
+                    && incoming().userId == userId
+                    && incoming().title is string
+                    && incoming().content is string
+                    && incoming().createdAt is string;
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+  }
+}

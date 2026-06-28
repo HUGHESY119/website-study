@@ -1,0 +1,6 @@
+{
+  "name": "QuizGenius",
+  "description": "An AI-powered flashcard generator and interactive study platform featuring spaced repetition quizzes and detailed analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
